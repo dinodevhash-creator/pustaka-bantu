@@ -1,0 +1,68 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    --font-display: "Bricolage Grotesque", system-ui, -apple-system, sans-serif;
+    --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+    scroll-padding-top: 84px;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-display);
+  }
+
+  code,
+  pre,
+  .font-mono {
+    font-family: var(--font-mono);
+  }
+}
+
+.paper-grid {
+  background-image: linear-gradient(to bottom, rgba(17, 28, 51, 0.045) 1px, transparent 1px);
+  background-size: 100% 32px;
+}
+
+.dark .paper-grid {
+  background-image: linear-gradient(to bottom, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 100% 32px;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+mark.search-mark {
+  background-color: #fde047;
+  color: #111c33;
+  border-radius: 3px;
+  padding: 0 2px;
+}
+
+.dark mark.search-mark {
+  background-color: #854d0e;
+  color: #fef9c3;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

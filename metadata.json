@@ -1,0 +1,6 @@
+{
+  "name": "Pustaka Bantu Mahasiswa",
+  "description": "Pustaka bantuan akademik dan alat interaktif mahasiswa: 35 panduan kuliah & skripsi, kalkulator Slovin, generator sitasi APA/Harvard/IEEE, pemilih uji statistik, template pesan dosen, timer Pomodoro, dan pelacak progres skripsi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

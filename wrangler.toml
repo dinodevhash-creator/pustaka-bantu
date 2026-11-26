@@ -1,0 +1,12 @@
+name = "pustaka-bantu"
+compatibility_date = "2026-01-01"
+pages_build_output_dir = "dist"
+
+# Bind KV namespace di Cloudflare Dashboard:
+# Pages -> pustaka-bantu -> Settings -> Bindings -> Add -> KV Namespace
+# Variable name: PUSTAKA_KV
+#
+# Jika deploy lewat Wrangler CLI, buka komentar blok di bawah dan isi ID KV Anda:
+# [[kv_namespaces]]
+# binding = "PUSTAKA_KV"
+# id = "GANTI_DENGAN_KV_NAMESPACE_ID_ANDA"
