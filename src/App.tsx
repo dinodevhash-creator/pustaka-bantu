@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
-import { ArrowUp } from 'lucide-react';
+import { AlertTriangle, ArrowUp, X } from 'lucide-react';
 import { CATEGORIES, GUIDES, StudyScenario, ToolId } from './data/guides';
 import {
   WorkHistoryCategory,
@@ -20,7 +20,11 @@ import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
 import { GuideLibrary } from './components/GuideLibrary';
 import { InteractiveToolkit } from './components/InteractiveToolkit';
-import { ThesisRoadmap } from './components/ThesisRoadmap';
+import {
+  ThesisRoadmap,
+  formatDeadlineRelative,
+  getUrgentThesisReminders,
+} from './components/ThesisRoadmap';
 import { WorkHistorySection } from './components/WorkHistorySection';
 import { LoginPage } from './components/LoginPage';
 import { FooterSection } from './components/FooterSection';
@@ -114,6 +118,12 @@ export default function App() {
   const [thesisTasks, setThesisTasks] = useState<Record<string, boolean>>(() =>
     readStorage<Record<string, boolean>>('pustaka_thesis_tasks', {})
   );
+  const [thesisDeadlines, setThesisDeadlines] = useState<Record<string, string>>(() =>
+    readStorage<Record<string, string>>('pustaka_thesis_deadlines_v1', {})
+  );
+  const [dismissedBannerDate, setDismissedBannerDate] = useState<string>(() =>
+    readStorage<string>('pustaka_thesis_banner_dismissed_v1', '')
+  );
   const [pomodoroLog, setPomodoroLog] = useState<Record<string, number>>(() =>
     readStorage<Record<string, number>>('pustaka_pomodoro_log', {})
   );
@@ -165,6 +175,11 @@ export default function App() {
   useEffect(() => writeStorage('pustaka_checked_steps', checkedSteps), [checkedSteps]);
   useEffect(() => writeStorage('pustaka_notes', notes), [notes]);
   useEffect(() => writeStorage('pustaka_thesis_tasks', thesisTasks), [thesisTasks]);
+  useEffect(() => writeStorage('pustaka_thesis_deadlines_v1', thesisDeadlines), [thesisDeadlines]);
+  useEffect(
+    () => writeStorage('pustaka_thesis_banner_dismissed_v1', dismissedBannerDate),
+    [dismissedBannerDate]
+  );
   useEffect(() => writeStorage('pustaka_pomodoro_log', pomodoroLog), [pomodoroLog]);
   useEffect(() => writeStorage('pustaka_work_history_v1', localHistory), [localHistory]);
 
@@ -495,8 +510,27 @@ export default function App() {
     pushWorkspaceToCloud({ thesisTaskIds: [] });
   };
 
+  const handleChangeThesisDeadline = (stageId: string, date: string) => {
+    setThesisDeadlines((prev) => {
+      const next = { ...prev };
+      if (!date) {
+        delete next[stageId];
+      } else {
+        next[stageId] = date;
+      }
+      return next;
+    });
+  };
+
   const todayKey = getTodayKey();
   const pomodoroSessionsToday = pomodoroLog[todayKey] || 0;
+
+  const urgentThesisReminders = useMemo(
+    () => getUrgentThesisReminders(thesisDeadlines, thesisTasks),
+    [thesisDeadlines, thesisTasks]
+  );
+  const showUrgentBanner =
+    urgentThesisReminders.length > 0 && dismissedBannerDate !== todayKey;
 
   const handleCompletePomodoro = (taskLabel: string) => {
     const nextCount = pomodoroSessionsToday + 1;
@@ -533,6 +567,46 @@ export default function App() {
         onNavigate={handleNavigate}
         onOpenLogin={() => setShowLoginPage(true)}
       />
+
+      {showUrgentBanner && (
+        <div
+          role="status"
+          className="border-b border-amber-200 dark:border-amber-800/80 bg-amber-50 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100"
+        >
+          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-300 shrink-0" />
+              <p className="truncate">
+                <strong>Pengingat Skripsi:</strong> Tahap {urgentThesisReminders[0].stageNumber} (
+                {urgentThesisReminders[0].stageTitle}) —{' '}
+                <span className="font-mono tabular-nums font-semibold">
+                  {formatDeadlineRelative(urgentThesisReminders[0].daysLeft)}
+                </span>
+                {urgentThesisReminders.length > 1
+                  ? ` (+${urgentThesisReminders.length - 1} tahap lainnya)`
+                  : ''}
+              </p>
+            </div>
+            <div className="flex items-center gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => scrollToId('progres-skripsi')}
+                className="font-semibold text-[#1D4ED8] dark:text-[#93C5FD] hover:underline underline-offset-4 cursor-pointer whitespace-nowrap"
+              >
+                Lihat Progres
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissedBannerDate(todayKey)}
+                aria-label="Tutup pengingat hari ini"
+                className="p-1 text-amber-800 dark:text-amber-200 hover:opacity-75 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1">
         <HeroSection
@@ -594,6 +668,8 @@ export default function App() {
 
         <ThesisRoadmap
           completedTasks={thesisTasks}
+          stageDeadlines={thesisDeadlines}
+          onChangeDeadline={handleChangeThesisDeadline}
           onToggleTask={handleToggleThesisTask}
           onResetTasks={handleResetThesisTasks}
           onJumpToGuide={handleJumpToGuide}
