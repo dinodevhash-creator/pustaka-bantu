@@ -30,6 +30,7 @@ import { LoginPage } from './components/LoginPage';
 import { FooterSection } from './components/FooterSection';
 import { FocusReader } from './components/FocusReader';
 import { InAppSearchTab, ScholarSearchModal } from './components/ScholarSearchModal';
+import { PromoVideoModal } from './components/PromoVideoModal';
 
 function readStorage<T>(key: string, fallback: T): T {
   try {
@@ -141,6 +142,7 @@ export default function App() {
   const [scholarModalOpen, setScholarModalOpen] = useState(false);
   const [scholarModalTab, setScholarModalTab] = useState<InAppSearchTab>('scholar');
   const [scholarInitialQuery, setScholarInitialQuery] = useState('');
+  const [promoVideoOpen, setPromoVideoOpen] = useState(false);
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const workspaceReadyRef = useRef<boolean>(false);
@@ -329,7 +331,8 @@ export default function App() {
         !isInputFocused &&
         !showLoginPage &&
         !focusedGuideId &&
-        !scholarModalOpen
+        !scholarModalOpen &&
+        !promoVideoOpen
       ) {
         e.preventDefault();
         searchInputRef.current?.focus();
@@ -347,7 +350,7 @@ export default function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('scroll', onScroll);
     };
-  }, [focusedGuideId, scholarModalOpen, showLoginPage]);
+  }, [focusedGuideId, promoVideoOpen, scholarModalOpen, showLoginPage]);
 
   const pushWorkspaceToCloud = (overrides?: {
     savedGuideIds?: string[];
@@ -706,6 +709,7 @@ export default function App() {
             totalGuides={GUIDES.length}
             totalCategories={CATEGORIES.length - 1}
             completedChecklistCount={completedChecklistCount}
+            onOpenPromoVideo={() => setPromoVideoOpen(true)}
           />
 
           <GuideLibrary
@@ -790,6 +794,7 @@ export default function App() {
             ]);
             scrollToId('panduan');
           }}
+          onOpenPromoVideo={() => setPromoVideoOpen(true)}
           onScrollTop={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
         />
 
@@ -811,6 +816,11 @@ export default function App() {
           onClose={() => setScholarModalOpen(false)}
           onSaveHistory={handleSaveHistory}
           isSignedIn={Boolean(user)}
+        />
+
+        <PromoVideoModal
+          isOpen={promoVideoOpen}
+          onClose={() => setPromoVideoOpen(false)}
         />
       </div>
     </div>

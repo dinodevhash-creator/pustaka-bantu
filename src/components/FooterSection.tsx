@@ -1,13 +1,15 @@
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, PlayCircle } from 'lucide-react';
 import { ResilientImage } from './ResilientImage';
 
 interface FooterSectionProps {
   onJumpToMentalHealth: () => void;
+  onOpenPromoVideo: () => void;
   onScrollTop: () => void;
 }
 
 export function FooterSection({
   onJumpToMentalHealth,
+  onOpenPromoVideo,
   onScrollTop,
 }: FooterSectionProps) {
   return (
@@ -63,14 +65,24 @@ export function FooterSection({
             Panduan umum. Untuk aturan resmi, selalu cek buku pedoman kampus dan dosen
             pembimbingmu.
           </p>
-          <button
-            type="button"
-            onClick={onScrollTop}
-            className="inline-flex items-center gap-1.5 font-semibold text-[#111C33] dark:text-slate-200 hover:text-[#1D4ED8] dark:hover:text-[#60A5FA] transition-colors whitespace-nowrap shrink-0 cursor-pointer self-start sm:self-auto"
-          >
-            <ArrowUp className="w-3.5 h-3.5" />
-            <span>Kembali ke atas</span>
-          </button>
+          <div className="flex items-center gap-4 shrink-0 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={onOpenPromoVideo}
+              className="inline-flex items-center gap-1.5 font-semibold text-[#1D4ED8] dark:text-[#60A5FA] hover:underline underline-offset-4 whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <PlayCircle className="w-3.5 h-3.5" />
+              <span>Video Promosi</span>
+            </button>
+            <button
+              type="button"
+              onClick={onScrollTop}
+              className="inline-flex items-center gap-1.5 font-semibold text-[#111C33] dark:text-slate-200 hover:text-[#1D4ED8] dark:hover:text-[#60A5FA] transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+              <span>Kembali ke atas</span>
+            </button>
+          </div>
         </div>
       </div>
     </footer>

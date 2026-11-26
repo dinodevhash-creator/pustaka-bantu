@@ -3,7 +3,8 @@ export type ToolId =
   | 'sitasi'
   | 'statistik'
   | 'pesan-dosen'
-  | 'pomodoro';
+  | 'pomodoro'
+  | 'ppt';
 
 export interface GuideItem {
   id: string;
@@ -55,6 +56,7 @@ export const TOOL_LABELS: Record<ToolId, string> = {
   statistik: 'Pemilih Uji Statistik',
   'pesan-dosen': 'Pesan Bimbingan Dosen',
   pomodoro: 'Timer Pomodoro',
+  ppt: 'Pembuat PPT Otomatis',
 };
 
 export const GUIDES: GuideItem[] = [
@@ -634,7 +636,7 @@ export const GUIDES: GuideItem[] = [
     readMinutes: 2,
     proTip:
       'Aturan 1 menit per slide membantu memastikan presentasi sidang 10 menit selesai tepat waktu tanpa terburu-buru di bagian hasil.',
-    relatedTool: 'pomodoro',
+    relatedTool: 'ppt',
   },
 ];
 

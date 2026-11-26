@@ -9,6 +9,7 @@ import {
   Pause,
   Play,
   Plus,
+  Presentation,
   RotateCcw,
   Save,
   Timer,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react';
 import { ToolId } from '../data/guides';
 import { WorkHistoryCategory } from '../firebase';
+import { PptGeneratorTool } from './PptGeneratorTool';
 
 interface InteractiveToolkitProps {
   activeTool: ToolId;
@@ -58,6 +60,12 @@ const TOOLS: { id: ToolId; label: string; shortDesc: string; icon: typeof Calcul
     label: 'Timer Pomodoro',
     shortDesc: 'Sesi fokus belajar dengan catatan gangguan',
     icon: Timer,
+  },
+  {
+    id: 'ppt',
+    label: 'Pembuat PPT',
+    shortDesc: 'Susun & ekspor slide PowerPoint (.pptx)',
+    icon: Presentation,
   },
 ];
 
@@ -1668,7 +1676,7 @@ export function InteractiveToolkit({
 
         {/* Tool Selector Bar */}
         <div
-          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 mb-6"
+          className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mb-6"
           role="tablist"
           aria-label="Pilih alat bantu mahasiswa"
         >
@@ -1732,6 +1740,7 @@ export function InteractiveToolkit({
               onCompleteSession={onCompletePomodoro}
             />
           )}
+          {activeTool === 'ppt' && <PptGeneratorTool />}
         </div>
       </div>
     </section>

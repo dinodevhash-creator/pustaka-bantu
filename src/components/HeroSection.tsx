@@ -4,6 +4,7 @@ import {
   BookOpenCheck,
   Check,
   Moon,
+  PlayCircle,
   RefreshCw,
   Search,
   Sun,
@@ -30,6 +31,7 @@ interface HeroSectionProps {
   totalGuides: number;
   totalCategories: number;
   completedChecklistCount: number;
+  onOpenPromoVideo: () => void;
 }
 
 interface DailyTipStorage {
@@ -138,6 +140,7 @@ export function HeroSection({
   totalGuides,
   totalCategories,
   completedChecklistCount,
+  onOpenPromoVideo,
 }: HeroSectionProps) {
   const [dailyState, setDailyState] = useState<DailyTipStorage>(() =>
     loadOrAdvanceDailyTip()
@@ -250,19 +253,30 @@ export function HeroSection({
                 </div>
               </form>
 
-              {/* Quick Topic Keywords */}
-              <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[#52607A] dark:text-slate-400">
-                <span>Topik sering dicari:</span>
-                {QUICK_TOPICS.map((word) => (
-                  <button
-                    key={word}
-                    type="button"
-                    onClick={() => onQuickKeyword(word)}
-                    className="font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline underline-offset-4 cursor-pointer whitespace-nowrap"
-                  >
-                    {word}
-                  </button>
-                ))}
+              {/* Quick Topic Keywords + Promo Video Trigger */}
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 text-xs text-[#52607A] dark:text-slate-400">
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+                  <span>Topik sering dicari:</span>
+                  {QUICK_TOPICS.map((word) => (
+                    <button
+                      key={word}
+                      type="button"
+                      onClick={() => onQuickKeyword(word)}
+                      className="font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline underline-offset-4 cursor-pointer whitespace-nowrap"
+                    >
+                      {word}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={onOpenPromoVideo}
+                  className="inline-flex items-center gap-1.5 font-semibold text-[#111C33] dark:text-slate-200 hover:text-[#1D4ED8] dark:hover:text-[#60A5FA] transition-colors cursor-pointer whitespace-nowrap shrink-0"
+                >
+                  <PlayCircle className="w-4 h-4 text-[#1D4ED8] dark:text-[#60A5FA]" />
+                  <span>Video Promosi</span>
+                </button>
               </div>
             </div>
 
