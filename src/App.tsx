@@ -28,6 +28,8 @@ import {
 import { WorkHistorySection } from './components/WorkHistorySection';
 import { LoginPage } from './components/LoginPage';
 import { FooterSection } from './components/FooterSection';
+import { FocusReader } from './components/FocusReader';
+import { InAppSearchTab, ScholarSearchModal } from './components/ScholarSearchModal';
 
 function readStorage<T>(key: string, fallback: T): T {
   try {
@@ -132,10 +134,18 @@ export default function App() {
   );
   const [cloudHistory, setCloudHistory] = useState<WorkHistoryEntry[]>([]);
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [focusedGuideId, setFocusedGuideId] = useState<string | null>(null);
+  const [autoFocusMode, setAutoFocusMode] = useState<boolean>(() =>
+    readStorage<boolean>('pustaka_auto_focus_mode_v1', false)
+  );
+  const [scholarModalOpen, setScholarModalOpen] = useState(false);
+  const [scholarModalTab, setScholarModalTab] = useState<InAppSearchTab>('scholar');
+  const [scholarInitialQuery, setScholarInitialQuery] = useState('');
 
   const searchInputRef = useRef<HTMLInputElement | null>(null);
   const workspaceReadyRef = useRef<boolean>(false);
   const noteTimersRef = useRef<Record<string, number>>({});
+  const returnScrollYRef = useRef<number>(0);
 
   // Keep latest local state accessible when signing in so local work merges smoothly
   const latestLocalRef = useRef({
@@ -182,6 +192,7 @@ export default function App() {
   );
   useEffect(() => writeStorage('pustaka_pomodoro_log', pomodoroLog), [pomodoroLog]);
   useEffect(() => writeStorage('pustaka_work_history_v1', localHistory), [localHistory]);
+  useEffect(() => writeStorage('pustaka_auto_focus_mode_v1', autoFocusMode), [autoFocusMode]);
 
   // Listen to Firebase Auth state
   useEffect(() => {
@@ -313,7 +324,13 @@ export default function App() {
           target.tagName === 'TEXTAREA' ||
           target.tagName === 'SELECT' ||
           target.isContentEditable);
-      if (e.key === '/' && !isInputFocused && !showLoginPage) {
+      if (
+        e.key === '/' &&
+        !isInputFocused &&
+        !showLoginPage &&
+        !focusedGuideId &&
+        !scholarModalOpen
+      ) {
         e.preventDefault();
         searchInputRef.current?.focus();
         searchInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -330,7 +347,7 @@ export default function App() {
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('scroll', onScroll);
     };
-  }, [showLoginPage]);
+  }, [focusedGuideId, scholarModalOpen, showLoginPage]);
 
   const pushWorkspaceToCloud = (overrides?: {
     savedGuideIds?: string[];
@@ -400,8 +417,29 @@ export default function App() {
     scrollToId(sectionId);
   };
 
+  const openFocusMode = (guideId: string) => {
+    if (!focusedGuideId) {
+      returnScrollYRef.current = window.scrollY;
+    }
+    setExpandedGuideIds((prev) => (prev.includes(guideId) ? prev : [...prev, guideId]));
+    setFocusedGuideId(guideId);
+  };
+
+  const exitFocusMode = () => {
+    const savedY = returnScrollYRef.current;
+    setFocusedGuideId(null);
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: savedY, behavior: 'auto' });
+    });
+  };
+
   const handleOpenTool = (tool: ToolId) => {
     setActiveTool(tool);
+    if (focusedGuideId) {
+      setFocusedGuideId(null);
+      window.setTimeout(() => scrollToId('alat-bantu'), 60);
+      return;
+    }
     scrollToId('alat-bantu');
   };
 
@@ -425,6 +463,10 @@ export default function App() {
   const handleJumpToGuide = (guideId: string) => {
     const found = GUIDES.find((g) => g.id === guideId);
     if (!found) return;
+    if (autoFocusMode) {
+      openFocusMode(guideId);
+      return;
+    }
     setShowSavedOnly(false);
     setActiveScenario(null);
     setActiveCategory(found.category);
@@ -558,159 +600,219 @@ export default function App() {
     );
   }
 
+  const focusedGuideIndex = focusedGuideId
+    ? GUIDES.findIndex((g) => g.id === focusedGuideId)
+    : -1;
+  const focusedGuide = focusedGuideIndex >= 0 ? GUIDES[focusedGuideIndex] : null;
+
+  if (focusedGuide) {
+    const prevGuide = focusedGuideIndex > 0 ? GUIDES[focusedGuideIndex - 1] : null;
+    const nextGuide =
+      focusedGuideIndex < GUIDES.length - 1 ? GUIDES[focusedGuideIndex + 1] : null;
+    return (
+      <FocusReader
+        guide={focusedGuide}
+        prevGuide={prevGuide}
+        nextGuide={nextGuide}
+        isDark={isDark}
+        onToggleTheme={() => setIsDark((prev) => !prev)}
+        isSaved={savedIds.includes(focusedGuide.id)}
+        onToggleSave={toggleSave}
+        isHelpful={helpfulIds.includes(focusedGuide.id)}
+        helpfulCount={helpfulCounts[focusedGuide.id] ?? 0}
+        onToggleHelpful={toggleHelpful}
+        checkedSteps={checkedSteps}
+        onToggleStep={toggleStep}
+        note={notes[focusedGuide.id] || ''}
+        onSaveNote={saveNote}
+        isSignedIn={Boolean(user)}
+        onSelectGuide={openFocusMode}
+        onOpenTool={handleOpenTool}
+        onExit={exitFocusMode}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F7F9FC] dark:bg-[#0B1220] text-[#111C33] dark:text-[#E8EEF9]">
-      <Header
-        user={user}
-        savedCount={savedIds.length}
-        historyCount={activeHistoryEntries.length}
-        onNavigate={handleNavigate}
-        onOpenLogin={() => setShowLoginPage(true)}
-      />
+      <div className="no-print">
+        <Header
+          user={user}
+          savedCount={savedIds.length}
+          historyCount={activeHistoryEntries.length}
+          onNavigate={handleNavigate}
+          onOpenLogin={() => setShowLoginPage(true)}
+        />
 
-      {showUrgentBanner && (
-        <div
-          role="status"
-          className="border-b border-amber-200 dark:border-amber-800/80 bg-amber-50 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100"
-        >
-          <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
-            <div className="flex items-center gap-2 min-w-0">
-              <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-300 shrink-0" />
-              <p className="truncate">
-                <strong>Pengingat Skripsi:</strong> Tahap {urgentThesisReminders[0].stageNumber} (
-                {urgentThesisReminders[0].stageTitle}) —{' '}
-                <span className="font-mono tabular-nums font-semibold">
-                  {formatDeadlineRelative(urgentThesisReminders[0].daysLeft)}
-                </span>
-                {urgentThesisReminders.length > 1
-                  ? ` (+${urgentThesisReminders.length - 1} tahap lainnya)`
-                  : ''}
-              </p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => scrollToId('progres-skripsi')}
-                className="font-semibold text-[#1D4ED8] dark:text-[#93C5FD] hover:underline underline-offset-4 cursor-pointer whitespace-nowrap"
-              >
-                Lihat Progres
-              </button>
-              <button
-                type="button"
-                onClick={() => setDismissedBannerDate(todayKey)}
-                aria-label="Tutup pengingat hari ini"
-                className="p-1 text-amber-800 dark:text-amber-200 hover:opacity-75 cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+        {showUrgentBanner && (
+          <div
+            role="status"
+            className="border-b border-amber-200 dark:border-amber-800/80 bg-amber-50 dark:bg-amber-950/60 text-amber-950 dark:text-amber-100"
+          >
+            <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs sm:text-sm">
+              <div className="flex items-center gap-2 min-w-0">
+                <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-300 shrink-0" />
+                <p className="truncate">
+                  <strong>Pengingat Skripsi:</strong> Tahap {urgentThesisReminders[0].stageNumber} (
+                  {urgentThesisReminders[0].stageTitle}) —{' '}
+                  <span className="font-mono tabular-nums font-semibold">
+                    {formatDeadlineRelative(urgentThesisReminders[0].daysLeft)}
+                  </span>
+                  {urgentThesisReminders.length > 1
+                    ? ` (+${urgentThesisReminders.length - 1} tahap lainnya)`
+                    : ''}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => scrollToId('progres-skripsi')}
+                  className="font-semibold text-[#1D4ED8] dark:text-[#93C5FD] hover:underline underline-offset-4 cursor-pointer whitespace-nowrap"
+                >
+                  Lihat Progres
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDismissedBannerDate(todayKey)}
+                  aria-label="Tutup pengingat hari ini"
+                  className="p-1 text-amber-800 dark:text-amber-200 hover:opacity-75 cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <main className="flex-1">
-        <HeroSection
-          query={query}
-          onQueryChange={(val) => {
-            setQuery(val);
-            if (activeScenario) setActiveScenario(null);
-          }}
-          onSubmitSearch={() => {
-            setShowSavedOnly(false);
-            scrollToId('panduan');
-          }}
-          onQuickKeyword={handleQuickKeyword}
-          onSelectScenario={handleSelectScenario}
-          onOpenTool={handleOpenTool}
-          onJumpToGuide={handleJumpToGuide}
-          isDark={isDark}
-          onToggleTheme={() => setIsDark((prev) => !prev)}
-          totalGuides={GUIDES.length}
-          totalCategories={CATEGORIES.length - 1}
-          completedChecklistCount={completedChecklistCount}
-        />
+        <div className="no-print">
+          <HeroSection
+            query={query}
+            onQueryChange={(val) => {
+              setQuery(val);
+              if (activeScenario) setActiveScenario(null);
+            }}
+            onSubmitSearch={() => {
+              setShowSavedOnly(false);
+              scrollToId('panduan');
+            }}
+            onQuickKeyword={handleQuickKeyword}
+            onSelectScenario={handleSelectScenario}
+            onOpenTool={handleOpenTool}
+            onJumpToGuide={handleJumpToGuide}
+            isDark={isDark}
+            onToggleTheme={() => setIsDark((prev) => !prev)}
+            totalGuides={GUIDES.length}
+            totalCategories={CATEGORIES.length - 1}
+            completedChecklistCount={completedChecklistCount}
+          />
 
-        <GuideLibrary
-          query={query}
-          onQueryChange={setQuery}
-          searchInputRef={searchInputRef}
-          activeCategory={activeCategory}
-          onCategoryChange={(cat) => {
-            setActiveCategory(cat);
-            setActiveScenario(null);
-          }}
-          activeScenario={activeScenario}
-          onClearScenario={() => setActiveScenario(null)}
-          showSavedOnly={showSavedOnly}
-          onToggleSavedOnly={setShowSavedOnly}
-          savedIds={savedIds}
-          onToggleSave={toggleSave}
-          helpfulIds={helpfulIds}
-          helpfulCounts={helpfulCounts}
-          onToggleHelpful={toggleHelpful}
-          checkedSteps={checkedSteps}
-          onToggleStep={toggleStep}
-          notes={notes}
-          onSaveNote={saveNote}
-          onOpenTool={handleOpenTool}
-          expandedGuideIds={expandedGuideIds}
-          onToggleExpand={toggleExpand}
-        />
+          <GuideLibrary
+            query={query}
+            onQueryChange={setQuery}
+            searchInputRef={searchInputRef}
+            activeCategory={activeCategory}
+            onCategoryChange={(cat) => {
+              setActiveCategory(cat);
+              setActiveScenario(null);
+            }}
+            activeScenario={activeScenario}
+            onClearScenario={() => setActiveScenario(null)}
+            showSavedOnly={showSavedOnly}
+            onToggleSavedOnly={setShowSavedOnly}
+            savedIds={savedIds}
+            onToggleSave={toggleSave}
+            helpfulIds={helpfulIds}
+            helpfulCounts={helpfulCounts}
+            onToggleHelpful={toggleHelpful}
+            checkedSteps={checkedSteps}
+            onToggleStep={toggleStep}
+            notes={notes}
+            onSaveNote={saveNote}
+            onOpenTool={handleOpenTool}
+            expandedGuideIds={expandedGuideIds}
+            onToggleExpand={toggleExpand}
+            autoFocusMode={autoFocusMode}
+            onToggleAutoFocusMode={() => setAutoFocusMode((prev) => !prev)}
+            onOpenFocusMode={openFocusMode}
+            onOpenInAppSearch={(tab, initialQ) => {
+              setScholarModalTab(tab);
+              setScholarInitialQuery(initialQ);
+              setScholarModalOpen(true);
+            }}
+          />
 
-        <InteractiveToolkit
-          activeTool={activeTool}
-          onToolChange={setActiveTool}
-          pomodoroSessionsToday={pomodoroSessionsToday}
-          onCompletePomodoro={handleCompletePomodoro}
-          onSaveHistory={handleSaveHistory}
-          isSignedIn={Boolean(user)}
-        />
+          <InteractiveToolkit
+            activeTool={activeTool}
+            onToolChange={setActiveTool}
+            pomodoroSessionsToday={pomodoroSessionsToday}
+            onCompletePomodoro={handleCompletePomodoro}
+            onSaveHistory={handleSaveHistory}
+            isSignedIn={Boolean(user)}
+          />
+        </div>
 
         <ThesisRoadmap
           completedTasks={thesisTasks}
           stageDeadlines={thesisDeadlines}
+          studentName={user?.displayName || undefined}
+          studentEmail={user?.email || undefined}
           onChangeDeadline={handleChangeThesisDeadline}
           onToggleTask={handleToggleThesisTask}
           onResetTasks={handleResetThesisTasks}
           onJumpToGuide={handleJumpToGuide}
         />
 
-        <WorkHistorySection
-          user={user}
-          authReady={authReady}
-          entries={activeHistoryEntries}
-          syncing={syncingCloud}
-          onOpenLogin={() => setShowLoginPage(true)}
-          onSignOut={() => void signOutAccount()}
-          onDeleteEntry={handleDeleteHistory}
-        />
+        <div className="no-print">
+          <WorkHistorySection
+            user={user}
+            authReady={authReady}
+            entries={activeHistoryEntries}
+            syncing={syncingCloud}
+            onOpenLogin={() => setShowLoginPage(true)}
+            onSignOut={() => void signOutAccount()}
+            onDeleteEntry={handleDeleteHistory}
+          />
+        </div>
       </main>
 
-      <FooterSection
-        onJumpToMentalHealth={() => {
-          setShowSavedOnly(false);
-          setActiveScenario(null);
-          setQuery('');
-          setActiveCategory('Kesehatan Mental');
-          setExpandedGuideIds([
-            'mengatasi-stres-dan-burnout',
-            'kapan-harus-mencari-bantuan-profesional',
-          ]);
-          scrollToId('panduan');
-        }}
-        onScrollTop={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-      />
+      <div className="no-print">
+        <FooterSection
+          onJumpToMentalHealth={() => {
+            setShowSavedOnly(false);
+            setActiveScenario(null);
+            setQuery('');
+            setActiveCategory('Kesehatan Mental');
+            setExpandedGuideIds([
+              'mengatasi-stres-dan-burnout',
+              'kapan-harus-mencari-bantuan-profesional',
+            ]);
+            scrollToId('panduan');
+          }}
+          onScrollTop={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        />
 
-      {showScrollTop && (
-        <button
-          type="button"
-          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-          aria-label="Kembali ke atas"
-          className="fixed right-5 bottom-5 z-30 w-11 h-11 rounded-full bg-[#111C33] dark:bg-[#E8EEF9] text-white dark:text-[#0B1220] shadow-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D4ED8]"
-        >
-          <ArrowUp className="w-4 h-4" />
-        </button>
-      )}
+        {showScrollTop && (
+          <button
+            type="button"
+            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+            aria-label="Kembali ke atas"
+            className="fixed right-5 bottom-5 z-30 w-11 h-11 rounded-full bg-[#111C33] dark:bg-[#E8EEF9] text-white dark:text-[#0B1220] shadow-lg flex items-center justify-center hover:scale-105 transition-transform cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D4ED8]"
+          >
+            <ArrowUp className="w-4 h-4" />
+          </button>
+        )}
+
+        <ScholarSearchModal
+          isOpen={scholarModalOpen}
+          initialTab={scholarModalTab}
+          initialQuery={scholarInitialQuery}
+          onClose={() => setScholarModalOpen(false)}
+          onSaveHistory={handleSaveHistory}
+          isSignedIn={Boolean(user)}
+        />
+      </div>
     </div>
   );
 }

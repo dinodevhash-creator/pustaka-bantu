@@ -5,25 +5,45 @@ import {
   Bell,
   BellOff,
   Calendar,
+  CalendarPlus,
+  Check,
   CheckCircle2,
   Clock,
+  Download,
+  ExternalLink,
+  FileDown,
+  Printer,
   RotateCcw,
   X,
 } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { GUIDES, THESIS_STAGES } from '../data/guides';
+import {
+  computeDaysUntil,
+  exportThesisWeeklyReportPdf,
+  formatDeadlineRelative,
+  getUrgentThesisReminders,
+  type ThesisReminderSummary,
+} from '../utils/thesisReportPdf';
+import {
+  buildGoogleCalendarUrl,
+  downloadAllThesisDeadlinesIcs,
+  downloadThesisStageIcs,
+  type ThesisCalendarEvent,
+} from '../utils/thesisCalendarExport';
 
-export interface ThesisReminderSummary {
-  stageId: string;
-  stageNumber: string;
-  stageTitle: string;
-  targetDate: string;
-  daysLeft: number;
-}
+export {
+  computeDaysUntil,
+  formatDeadlineRelative,
+  getUrgentThesisReminders,
+  type ThesisReminderSummary,
+};
 
 interface ThesisRoadmapProps {
   completedTasks: Record<string, boolean>;
   stageDeadlines: Record<string, string>;
+  studentName?: string;
+  studentEmail?: string;
   onChangeDeadline: (stageId: string, date: string) => void;
   onToggleTask: (taskId: string) => void;
   onResetTasks: () => void;
@@ -32,48 +52,6 @@ interface ThesisRoadmapProps {
 
 const NOTIF_PREF_KEY = 'pustaka_thesis_notif_enabled_v1';
 const NOTIF_SENT_KEY = 'pustaka_thesis_notif_sent_v1';
-
-export function computeDaysUntil(dateStr: string): number | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return null;
-  const [y, m, d] = dateStr.split('-').map(Number);
-  const target = new Date(y, m - 1, d);
-  if (Number.isNaN(target.getTime())) return null;
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
-}
-
-export function getUrgentThesisReminders(
-  stageDeadlines: Record<string, string>,
-  completedTasks: Record<string, boolean>
-): ThesisReminderSummary[] {
-  const list: ThesisReminderSummary[] = [];
-  for (const stage of THESIS_STAGES) {
-    const isComplete = stage.tasks.every((t) => completedTasks[t.id]);
-    if (isComplete) continue;
-    const targetDate = stageDeadlines[stage.id];
-    if (!targetDate) continue;
-    const daysLeft = computeDaysUntil(targetDate);
-    if (daysLeft === null) continue;
-    if (daysLeft <= 3) {
-      list.push({
-        stageId: stage.id,
-        stageNumber: stage.number,
-        stageTitle: stage.title,
-        targetDate,
-        daysLeft,
-      });
-    }
-  }
-  return list.sort((a, b) => a.daysLeft - b.daysLeft);
-}
-
-export function formatDeadlineRelative(daysLeft: number): string {
-  if (daysLeft < 0) return `Terlewat ${Math.abs(daysLeft)} hari`;
-  if (daysLeft === 0) return 'Jatuh tempo hari ini';
-  if (daysLeft === 1) return 'Jatuh tempo besok';
-  return `H-${daysLeft} lagi`;
-}
 
 function formatShortIndonesianDate(dateStr: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return dateStr;
@@ -99,6 +77,8 @@ function getTodayDateString(): string {
 export function ThesisRoadmap({
   completedTasks,
   stageDeadlines,
+  studentName,
+  studentEmail,
   onChangeDeadline,
   onToggleTask,
   onResetTasks,
@@ -113,6 +93,30 @@ export function ThesisRoadmap({
   });
   const [notifFeedback, setNotifFeedback] = useState<string | null>(null);
   const [chartMode, setChartMode] = useState<'overall' | 'stage'>('overall');
+  const [pdfExported, setPdfExported] = useState(false);
+  const [openCalendarStageId, setOpenCalendarStageId] = useState<string | null>(null);
+  const [downloadedIcsStageId, setDownloadedIcsStageId] = useState<string | null>(null);
+  const [allIcsExported, setAllIcsExported] = useState(false);
+
+  const scheduledCalendarEvents = useMemo<ThesisCalendarEvent[]>(() => {
+    const events: ThesisCalendarEvent[] = [];
+    for (const stage of THESIS_STAGES) {
+      const targetDate = stageDeadlines[stage.id];
+      if (!targetDate) continue;
+      events.push({
+        stageId: stage.id,
+        stageNumber: stage.number,
+        stageTitle: stage.title,
+        stageSubtitle: stage.subtitle,
+        targetDate,
+        tasks: stage.tasks.map((t) => ({
+          label: t.label,
+          done: Boolean(completedTasks[t.id]),
+        })),
+      });
+    }
+    return events;
+  }, [completedTasks, stageDeadlines]);
 
   const allTasks = THESIS_STAGES.flatMap((s) => s.tasks);
   const doneCount = allTasks.filter((t) => completedTasks[t.id]).length;
@@ -259,9 +263,9 @@ export function ThesisRoadmap({
   return (
     <section
       id="progres-skripsi"
-      className="py-12 lg:py-16 border-t border-slate-200/80 dark:border-slate-800/80"
+      className="py-12 lg:py-16 border-t border-slate-200/80 dark:border-slate-800/80 print:py-0 print:border-0"
     >
-      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8 print:hidden">
         {/* Editorial Banner Header */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch mb-8">
           <div className="lg:col-span-7 bg-white dark:bg-[#111B2E] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-6 sm:p-8 flex flex-col justify-between">
@@ -297,39 +301,104 @@ export function ThesisRoadmap({
                 </div>
               </div>
 
-              {/* Reminder Controls Row */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={handleToggleBrowserNotif}
-                  aria-pressed={browserNotifEnabled}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
-                    browserNotifEnabled
-                      ? 'border-[#1D4ED8] bg-[#1D4ED8]/10 text-[#1D4ED8] dark:text-[#60A5FA]'
-                      : 'border-slate-200 dark:border-slate-700 bg-[#F7F9FC] dark:bg-[#0B1220] text-[#111C33] dark:text-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  {browserNotifEnabled ? (
-                    <>
-                      <Bell className="w-3.5 h-3.5" />
-                      <span>Notifikasi Browser Aktif</span>
-                    </>
-                  ) : (
-                    <>
-                      <BellOff className="w-3.5 h-3.5" />
-                      <span>Aktifkan Notifikasi Browser</span>
-                    </>
+              {/* Reminder & Weekly Report Export Controls */}
+              <div className="flex flex-wrap items-center justify-between gap-2.5 pt-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      exportThesisWeeklyReportPdf({
+                        completedTasks,
+                        stageDeadlines,
+                        studentName,
+                        studentEmail,
+                      });
+                      setPdfExported(true);
+                      setTimeout(() => setPdfExported(false), 2200);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-[#1D4ED8] hover:bg-[#1E40AF] text-white transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    {pdfExported ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>PDF Diunduh</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileDown className="w-3.5 h-3.5" />
+                        <span>Unduh Laporan PDF</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-[#F7F9FC] dark:bg-[#0B1220] text-[#111C33] dark:text-slate-200 hover:border-[#1D4ED8] transition-colors cursor-pointer whitespace-nowrap"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Cetak</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleBrowserNotif}
+                    aria-pressed={browserNotifEnabled}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors cursor-pointer whitespace-nowrap ${
+                      browserNotifEnabled
+                        ? 'border-[#1D4ED8] bg-[#1D4ED8]/10 text-[#1D4ED8] dark:text-[#60A5FA]'
+                        : 'border-slate-200 dark:border-slate-700 bg-[#F7F9FC] dark:bg-[#0B1220] text-[#111C33] dark:text-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    {browserNotifEnabled ? (
+                      <>
+                        <Bell className="w-3.5 h-3.5" />
+                        <span>Notifikasi Aktif</span>
+                      </>
+                    ) : (
+                      <>
+                        <BellOff className="w-3.5 h-3.5" />
+                        <span>Notifikasi Browser</span>
+                      </>
+                    )}
+                  </button>
+
+                  {scheduledCalendarEvents.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (downloadAllThesisDeadlinesIcs(scheduledCalendarEvents)) {
+                          setAllIcsExported(true);
+                          setTimeout(() => setAllIcsExported(false), 2200);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-slate-200 dark:border-slate-700 bg-[#F7F9FC] dark:bg-[#0B1220] text-[#111C33] dark:text-slate-200 hover:border-[#1D4ED8] transition-colors cursor-pointer whitespace-nowrap"
+                    >
+                      {allIcsExported ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                          <span>Semua .ics Diunduh</span>
+                        </>
+                      ) : (
+                        <>
+                          <CalendarPlus className="w-3.5 h-3.5" />
+                          <span className="tabular-nums">
+                            Ekspor Semua (.ics · {scheduledCalendarEvents.length})
+                          </span>
+                        </>
+                      )}
+                    </button>
                   )}
-                </button>
+                </div>
 
                 {doneCount > 0 && (
                   <button
                     type="button"
                     onClick={onResetTasks}
-                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#52607A] dark:text-slate-400 hover:text-[#111C33] dark:hover:text-white cursor-pointer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium text-[#52607A] dark:text-slate-400 hover:text-[#111C33] dark:hover:text-white cursor-pointer whitespace-nowrap"
                   >
                     <RotateCcw className="w-3.5 h-3.5" />
-                    <span>Reset ceklis skripsi</span>
+                    <span>Reset ceklis</span>
                   </button>
                 )}
               </div>
@@ -620,6 +689,91 @@ export function ThesisRoadmap({
                         Target {formatShortIndonesianDate(targetDate)} · {formatDeadlineRelative(daysLeft)}
                       </p>
                     )}
+
+                    {/* Add to Calendar Export Trigger (Google Calendar or .ics) */}
+                    <div className="mt-2 pt-2 border-t border-slate-200/70 dark:border-slate-800/80">
+                      <button
+                        type="button"
+                        disabled={!targetDate}
+                        aria-expanded={Boolean(targetDate && openCalendarStageId === stage.id)}
+                        onClick={() =>
+                          setOpenCalendarStageId((curr) => (curr === stage.id ? null : stage.id))
+                        }
+                        title={
+                          targetDate
+                            ? 'Ekspor tenggat tahap ini ke Google Calendar atau file .ics'
+                            : 'Pilih tanggal target terlebih dahulu'
+                        }
+                        className={`w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-semibold border transition-colors whitespace-nowrap ${
+                          targetDate
+                            ? openCalendarStageId === stage.id
+                              ? 'border-[#1D4ED8] bg-[#1D4ED8]/10 text-[#1D4ED8] dark:text-[#60A5FA] cursor-pointer'
+                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111B2E] text-[#111C33] dark:text-slate-200 hover:border-[#1D4ED8] cursor-pointer'
+                            : 'border-slate-200/70 dark:border-slate-800 bg-transparent text-slate-400 dark:text-slate-500 cursor-not-allowed'
+                        }`}
+                      >
+                        <CalendarPlus className="w-3.5 h-3.5 shrink-0" />
+                        <span>Tambah ke Kalender</span>
+                      </button>
+
+                      {targetDate && openCalendarStageId === stage.id && (() => {
+                        const stageEvent: ThesisCalendarEvent = {
+                          stageId: stage.id,
+                          stageNumber: stage.number,
+                          stageTitle: stage.title,
+                          stageSubtitle: stage.subtitle,
+                          targetDate,
+                          tasks: stage.tasks.map((t) => ({
+                            label: t.label,
+                            done: Boolean(completedTasks[t.id]),
+                          })),
+                        };
+                        const googleCalUrl = buildGoogleCalendarUrl(stageEvent);
+                        const isIcsDone = downloadedIcsStageId === stage.id;
+
+                        return (
+                          <div className="mt-2 grid grid-cols-2 gap-1.5">
+                            <a
+                              href={googleCalUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-[11px] font-semibold transition-colors whitespace-nowrap"
+                            >
+                              <span>Google Calendar</span>
+                              <ExternalLink className="w-3 h-3 shrink-0" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (downloadThesisStageIcs(stageEvent)) {
+                                  setDownloadedIcsStageId(stage.id);
+                                  setTimeout(
+                                    () =>
+                                      setDownloadedIcsStageId((curr) =>
+                                        curr === stage.id ? null : curr
+                                      ),
+                                    2200
+                                  );
+                                }
+                              }}
+                              className="inline-flex items-center justify-center gap-1 px-2 py-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111B2E] text-[#111C33] dark:text-slate-200 hover:border-[#1D4ED8] text-[11px] font-semibold transition-colors cursor-pointer whitespace-nowrap"
+                            >
+                              {isIcsDone ? (
+                                <>
+                                  <Check className="w-3 h-3 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span>.ics Diunduh</span>
+                                </>
+                              ) : (
+                                <>
+                                  <Download className="w-3 h-3 shrink-0" />
+                                  <span>File .ics</span>
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })()}
+                    </div>
                   </div>
 
                   <ul className="mt-4 space-y-2">
@@ -667,6 +821,92 @@ export function ThesisRoadmap({
                     );
                   })}
                 </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Print-Only Formal Weekly Report Sheet */}
+      <div className="hidden print:block text-[#111C33] bg-white">
+        <div className="flex items-baseline justify-between border-b border-slate-300 pb-3 mb-5">
+          <div>
+            <p className="text-xs font-semibold text-[#1D4ED8]">Pustaka Bantu Mahasiswa</p>
+            <h1 className="font-display text-2xl font-bold mt-0.5">
+              Laporan Mingguan Progres Skripsi
+            </h1>
+            {studentName && (
+              <p className="text-xs text-slate-600 mt-1">
+                Mahasiswa: {studentName}
+                {studentEmail ? ` (${studentEmail})` : ''}
+              </p>
+            )}
+          </div>
+          <div className="text-right text-xs text-slate-600">
+            <p>Tanggal cetak: {formatShortIndonesianDate(getTodayDateString())}</p>
+            <p className="font-mono font-bold text-base text-[#1D4ED8] mt-1 tabular-nums">
+              {percent}% ({doneCount}/{allTasks.length} tugas)
+            </p>
+          </div>
+        </div>
+
+        {urgentReminders.length > 0 && (
+          <div className="border border-amber-400 rounded-lg p-3 mb-4 bg-amber-50/70 break-inside-avoid">
+            <p className="text-xs font-bold text-amber-900">
+              Perhatian Tenggat Dekat ({urgentReminders.length} tahap)
+            </p>
+            <ul className="mt-1 space-y-0.5 text-xs text-amber-950">
+              {urgentReminders.map((item) => (
+                <li key={item.stageId}>
+                  • Tahap {item.stageNumber} ({item.stageTitle}):{' '}
+                  <strong>{formatDeadlineRelative(item.daysLeft)}</strong> (
+                  {formatShortIndonesianDate(item.targetDate)})
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div className="space-y-4">
+          {THESIS_STAGES.map((stage) => {
+            const stageDone = stage.tasks.filter((t) => completedTasks[t.id]).length;
+            const targetDate = stageDeadlines[stage.id] || '';
+            const daysLeft = targetDate ? computeDaysUntil(targetDate) : null;
+            return (
+              <div
+                key={stage.id}
+                className="border border-slate-300 rounded-lg p-3.5 break-inside-avoid"
+              >
+                <div className="flex items-baseline justify-between gap-2 border-b border-slate-200 pb-2 mb-2">
+                  <p className="font-display font-bold text-sm">
+                    Tahap {stage.number} — {stage.title}
+                  </p>
+                  <p className="font-mono text-xs text-slate-600 tabular-nums">
+                    {stageDone}/{stage.tasks.length} selesai
+                    {targetDate
+                      ? ` · Target ${formatShortIndonesianDate(targetDate)}${
+                          daysLeft !== null && stageDone < stage.tasks.length
+                            ? ` (${formatDeadlineRelative(daysLeft)})`
+                            : ''
+                        }`
+                      : ''}
+                  </p>
+                </div>
+                <ul className="space-y-1 text-xs">
+                  {stage.tasks.map((task) => {
+                    const checked = Boolean(completedTasks[task.id]);
+                    return (
+                      <li key={task.id} className="flex items-start gap-2">
+                        <span className="font-mono font-semibold">
+                          {checked ? '[x]' : '[ ]'}
+                        </span>
+                        <span className={checked ? 'text-emerald-800' : 'text-slate-800'}>
+                          {task.label}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
               </div>
             );
           })}
