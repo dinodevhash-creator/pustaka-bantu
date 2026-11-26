@@ -1,5 +1,3 @@
-import { GUIDES } from '../../src/data/guides';
-
 interface KVListKey<M = unknown> {
   name: string;
   expiration?: number;
@@ -35,7 +33,44 @@ interface PagesContext {
   env: Env;
 }
 
-const VALID_GUIDE_IDS = new Set<string>(GUIDES.map((g) => g.id));
+const VALID_GUIDE_IDS = new Set<string>([
+  'cara-memilih-topik-skripsi',
+  'struktur-bab-skripsi',
+  'menulis-latar-belakang-masalah',
+  'tips-bimbingan-dengan-dosen',
+  'persiapan-sidang-skripsi',
+  'menghindari-plagiarisme',
+  'format-sitasi-apa-harvard-ieee',
+  'menulis-abstrak-yang-baik',
+  'menulis-esai-dan-makalah',
+  'mencari-jurnal-ilmiah-gratis',
+  'cara-membaca-jurnal-dengan-cepat',
+  'akreditasi-jurnal-sinta-dan-scopus',
+  'menulis-tinjauan-pustaka',
+  'teknik-belajar-efektif',
+  'persiapan-uts-dan-uas',
+  'mencatat-dengan-metode-cornell',
+  'teknik-pomodoro',
+  'cara-aktif-di-kelas-dan-diskusi',
+  'memilih-uji-statistik',
+  'menentukan-ukuran-sampel',
+  'kuesioner-yang-valid-dan-reliabel',
+  'mengatur-jadwal-kuliah-dan-tugas',
+  'mengatasi-prokrastinasi',
+  'menyeimbangkan-organisasi-dan-kuliah',
+  'mencari-beasiswa',
+  'menulis-esai-beasiswa',
+  'mengatur-keuangan-bulanan',
+  'menyusun-cv-mahasiswa',
+  'mencari-magang',
+  'persiapan-wawancara-kerja',
+  'mengatasi-stres-dan-burnout',
+  'kapan-harus-mencari-bantuan-profesional',
+  'aplikasi-pendukung-kuliah',
+  'bantuan-ai-untuk-belajar',
+  'menyiapkan-slide-presentasi',
+]);
+
 const KEY_PREFIX = 'like:';
 const MAX_BODY_BYTES = 4096;
 

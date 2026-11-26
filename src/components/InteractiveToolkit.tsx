@@ -10,18 +10,22 @@ import {
   Play,
   Plus,
   RotateCcw,
+  Save,
   Timer,
   Trash2,
   Volume2,
   VolumeX,
 } from 'lucide-react';
 import { ToolId } from '../data/guides';
+import { WorkHistoryCategory } from '../firebase';
 
 interface InteractiveToolkitProps {
   activeTool: ToolId;
   onToolChange: (tool: ToolId) => void;
   pomodoroSessionsToday: number;
-  onCompletePomodoro: () => void;
+  onCompletePomodoro: (taskLabel: string) => void;
+  onSaveHistory: (category: WorkHistoryCategory, title: string, detail: string) => void;
+  isSignedIn: boolean;
 }
 
 const TOOLS: { id: ToolId; label: string; shortDesc: string; icon: typeof Calculator }[] = [
@@ -60,11 +64,18 @@ const TOOLS: { id: ToolId; label: string; shortDesc: string; icon: typeof Calcul
 /* -------------------------------------------------------------------------- */
 /* 1. KALKULATOR SLOVIN                                                       */
 /* -------------------------------------------------------------------------- */
-function SlovinCalculator() {
+function SlovinCalculator({
+  onSaveHistory,
+  isSignedIn,
+}: {
+  onSaveHistory: (category: WorkHistoryCategory, title: string, detail: string) => void;
+  isSignedIn: boolean;
+}) {
   const [population, setPopulation] = useState<number>(1200);
   const [marginPct, setMarginPct] = useState<number>(5);
   const [bufferPct, setBufferPct] = useState<number>(10);
   const [regVars, setRegVars] = useState<number>(3);
+  const [savedFlag, setSavedFlag] = useState(false);
 
   const e = marginPct / 100;
   const safePop = Number.isFinite(population) && population > 0 ? population : 0;
@@ -248,6 +259,29 @@ function SlovinCalculator() {
           </div>
         </div>
 
+        <button
+          type="button"
+          onClick={() => {
+            onSaveHistory(
+              'slovin',
+              `Sampel Slovin: n = ${minSample} (N = ${safePop.toLocaleString('id-ID')}, e = ${marginPct}%)`,
+              `Populasi (N): ${safePop.toLocaleString('id-ID')}\nMargin of error (e): ${marginPct}%\nSampel minimal (n): ${minSample} (tepat: ${rawN.toFixed(2)})\nTarget dengan +${bufferPct}% cadangan: ${withBuffer} responden`
+            );
+            setSavedFlag(true);
+            setTimeout(() => setSavedFlag(false), 2000);
+          }}
+          className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold transition-colors cursor-pointer"
+        >
+          {savedFlag ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+          <span>
+            {savedFlag
+              ? isSignedIn
+                ? 'Tersimpan di Riwayat Akun Google'
+                : 'Tersimpan di Riwayat Lokal'
+              : 'Simpan Hasil ke Riwayat Kerja'}
+          </span>
+        </button>
+
         <p className="text-xs text-[#52607A] dark:text-slate-400 leading-relaxed">
           Untuk penelitian eksperimen atau uji daya statistik (power analysis) yang lebih presisi,
           konfirmasikan hasil ini dengan G*Power atau pedoman dosen pembimbing.
@@ -294,7 +328,13 @@ function getSurname(fullName: string): string {
   return parts.length ? parts[parts.length - 1] : 'Penulis';
 }
 
-function CitationGenerator() {
+function CitationGenerator({
+  onSaveHistory,
+  isSignedIn,
+}: {
+  onSaveHistory: (category: WorkHistoryCategory, title: string, detail: string) => void;
+  isSignedIn: boolean;
+}) {
   const [style, setStyle] = useState<CitationStyle>('apa');
   const [kind, setKind] = useState<SourceKind>('jurnal');
   const [author, setAuthor] = useState('Budi Santoso');
@@ -307,6 +347,7 @@ function CitationGenerator() {
   const [pagesOrUrl, setPagesOrUrl] = useState('114–128');
   const [copied, setCopied] = useState<'intext' | 'bib' | 'all' | null>(null);
   const [savedList, setSavedList] = useState<string[]>([]);
+  const [savedToHistory, setSavedToHistory] = useState(false);
 
   const { inText, bibliography } = useMemo(() => {
     const surname = getSurname(author);
@@ -579,18 +620,43 @@ function CitationGenerator() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            if (!savedList.includes(bibliography)) {
-              setSavedList((prev) => [...prev, bibliography]);
-            }
-          }}
-          className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold transition-colors cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Tambahkan ke Daftar Pustaka Sementara</span>
-        </button>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              if (!savedList.includes(bibliography)) {
+                setSavedList((prev) => [...prev, bibliography]);
+              }
+            }}
+            className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111B2E] hover:border-[#1D4ED8] text-[#111C33] dark:text-slate-100 text-xs font-semibold transition-colors cursor-pointer"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Tambah ke Daftar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              onSaveHistory(
+                'sitasi',
+                `Sitasi ${style.toUpperCase()}: ${author.trim() || 'Penulis'} (${year.trim() || 't.t.'})`,
+                `Dalam teks: ${inText}\nDaftar pustaka: ${bibliography}`
+              );
+              setSavedToHistory(true);
+              setTimeout(() => setSavedToHistory(false), 2000);
+            }}
+            className="w-full inline-flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold transition-colors cursor-pointer"
+          >
+            {savedToHistory ? <Check className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
+            <span>
+              {savedToHistory
+                ? isSignedIn
+                  ? 'Masuk Riwayat Cloud'
+                  : 'Tersimpan Lokal'
+                : 'Simpan ke Riwayat'}
+            </span>
+          </button>
+        </div>
 
         {savedList.length > 0 && (
           <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-2">
@@ -802,11 +868,18 @@ function getStatRecommendation(
       };
 }
 
-function StatTestWizard() {
+function StatTestWizard({
+  onSaveHistory,
+  isSignedIn,
+}: {
+  onSaveHistory: (category: WorkHistoryCategory, title: string, detail: string) => void;
+  isSignedIn: boolean;
+}) {
   const [goal, setGoal] = useState<StatGoal>('beda');
   const [dataType, setDataType] = useState<StatData>('numerik');
   const [group, setGroup] = useState<StatGroup>('2-indep');
   const [dist, setDist] = useState<StatDist>('normal');
+  const [savedFlag, setSavedFlag] = useState(false);
 
   const result = useMemo(
     () => getStatRecommendation(goal, dataType, group, dist),
@@ -970,13 +1043,37 @@ function StatTestWizard() {
           </ul>
         </div>
 
-        <div className="pt-3 border-t border-slate-200 dark:border-slate-800">
-          <p className="text-xs font-semibold text-[#111C33] dark:text-slate-200">
-            Cara membaca hasil
-          </p>
-          <p className="mt-1 text-xs sm:text-sm text-[#4A5873] dark:text-slate-300 leading-relaxed">
-            {result.interpretation}
-          </p>
+        <div className="pt-3 border-t border-slate-200 dark:border-slate-800 space-y-3">
+          <div>
+            <p className="text-xs font-semibold text-[#111C33] dark:text-slate-200">
+              Cara membaca hasil
+            </p>
+            <p className="mt-1 text-xs sm:text-sm text-[#4A5873] dark:text-slate-300 leading-relaxed">
+              {result.interpretation}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              onSaveHistory(
+                'statistik',
+                `Rekomendasi Uji: ${result.name}`,
+                `Jalur SPSS: ${result.spssPath}\nAlternatif: ${result.alternative}\nInterpretasi: ${result.interpretation}`
+              );
+              setSavedFlag(true);
+              setTimeout(() => setSavedFlag(false), 2000);
+            }}
+            className="w-full inline-flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold transition-colors cursor-pointer"
+          >
+            {savedFlag ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+            <span>
+              {savedFlag
+                ? isSignedIn
+                  ? 'Tersimpan di Riwayat Akun Google'
+                  : 'Tersimpan di Riwayat Lokal'
+                : 'Simpan Rekomendasi Uji ke Riwayat'}
+            </span>
+          </button>
         </div>
       </div>
     </div>
@@ -988,7 +1085,13 @@ function StatTestWizard() {
 /* -------------------------------------------------------------------------- */
 type MessageScenario = 'kirim-draf' | 'minta-jadwal' | 'followup-revisi' | 'izin-kuliah';
 
-function LecturerMessageBuilder() {
+function LecturerMessageBuilder({
+  onSaveHistory,
+  isSignedIn,
+}: {
+  onSaveHistory: (category: WorkHistoryCategory, title: string, detail: string) => void;
+  isSignedIn: boolean;
+}) {
   const [scenario, setScenario] = useState<MessageScenario>('kirim-draf');
   const [greeting, setGreeting] = useState('Selamat pagi');
   const [lecturer, setLecturer] = useState('Bapak/Ibu Dr. Hendra Wijaya');
@@ -998,6 +1101,7 @@ function LecturerMessageBuilder() {
   const [topic, setTopic] = useState('Revisi Bab 1 & Bab 2 Skripsi');
   const [timeSlot, setTimeSlot] = useState('Kamis, 10.00 WIB');
   const [copied, setCopied] = useState(false);
+  const [savedFlag, setSavedFlag] = useState(false);
 
   const generatedMessage = useMemo(() => {
     const nama = studentName.trim() || '[Nama Lengkap]';
@@ -1209,6 +1313,29 @@ function LecturerMessageBuilder() {
             Buka di WhatsApp
           </a>
 
+          <button
+            type="button"
+            onClick={() => {
+              onSaveHistory(
+                'pesan-dosen',
+                `Draf Pesan: ${topic.trim() || 'Bimbingan Dosen'} (${lecturer.trim() || 'Dosen'})`,
+                generatedMessage
+              );
+              setSavedFlag(true);
+              setTimeout(() => setSavedFlag(false), 2000);
+            }}
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#111B2E] text-xs font-semibold text-[#111C33] dark:text-slate-200 hover:border-[#1D4ED8] transition-colors cursor-pointer whitespace-nowrap"
+          >
+            {savedFlag ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Save className="w-3.5 h-3.5" />}
+            <span>
+              {savedFlag
+                ? isSignedIn
+                  ? 'Tersimpan di Cloud'
+                  : 'Tersimpan Lokal'
+                : 'Simpan ke Riwayat'}
+            </span>
+          </button>
+
           <a
             href={`mailto:?subject=${encodeURIComponent(
               `Bimbingan ${topic} - ${studentName}`
@@ -1257,7 +1384,7 @@ function PomodoroTimer({
   onCompleteSession,
 }: {
   sessionsToday: number;
-  onCompleteSession: () => void;
+  onCompleteSession: (taskLabel: string) => void;
 }) {
   const [presetId, setPresetId] = useState('25-5');
   const [phase, setPhase] = useState<'fokus' | 'istirahat'>('fokus');
@@ -1276,6 +1403,8 @@ function PomodoroTimer({
 
   const onCompleteRef = useRef(onCompleteSession);
   onCompleteRef.current = onCompleteSession;
+  const taskLabelRef = useRef(taskLabel);
+  taskLabelRef.current = taskLabel;
 
   useEffect(() => {
     if (!running) return;
@@ -1284,7 +1413,7 @@ function PomodoroTimer({
         if (prev <= 1) {
           if (soundOn) playSoftChime();
           if (phase === 'fokus') {
-            onCompleteRef.current();
+            onCompleteRef.current(taskLabelRef.current);
             setPhase('istirahat');
             return preset.rest * 60;
           } else {
@@ -1515,6 +1644,8 @@ export function InteractiveToolkit({
   onToolChange,
   pomodoroSessionsToday,
   onCompletePomodoro,
+  onSaveHistory,
+  isSignedIn,
 }: InteractiveToolkitProps) {
   return (
     <section
@@ -1524,7 +1655,7 @@ export function InteractiveToolkit({
       <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="max-w-2xl mb-6">
           <p className="text-xs font-medium text-[#52607A] dark:text-slate-400">
-            Alat Kerja Interaktif · Langsung Pakai di Peramban
+            Alat Kerja Interaktif · Langsung Pakai &amp; Simpan ke Riwayat
           </p>
           <h2 className="mt-1 font-display text-2xl sm:text-3xl font-bold tracking-tight text-[#111C33] dark:text-[#F1F5F9]">
             Bukan sekadar dibaca—hitung dan susun langsung
@@ -1583,10 +1714,18 @@ export function InteractiveToolkit({
           role="tabpanel"
           className="bg-white dark:bg-[#111B2E] border border-slate-200/90 dark:border-slate-800 rounded-2xl p-5 sm:p-7"
         >
-          {activeTool === 'slovin' && <SlovinCalculator />}
-          {activeTool === 'sitasi' && <CitationGenerator />}
-          {activeTool === 'statistik' && <StatTestWizard />}
-          {activeTool === 'pesan-dosen' && <LecturerMessageBuilder />}
+          {activeTool === 'slovin' && (
+            <SlovinCalculator onSaveHistory={onSaveHistory} isSignedIn={isSignedIn} />
+          )}
+          {activeTool === 'sitasi' && (
+            <CitationGenerator onSaveHistory={onSaveHistory} isSignedIn={isSignedIn} />
+          )}
+          {activeTool === 'statistik' && (
+            <StatTestWizard onSaveHistory={onSaveHistory} isSignedIn={isSignedIn} />
+          )}
+          {activeTool === 'pesan-dosen' && (
+            <LecturerMessageBuilder onSaveHistory={onSaveHistory} isSignedIn={isSignedIn} />
+          )}
           {activeTool === 'pomodoro' && (
             <PomodoroTimer
               sessionsToday={pomodoroSessionsToday}

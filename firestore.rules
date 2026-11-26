@@ -1,0 +1,191 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default-deny global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedOwner(userId) {
+      return isSignedIn()
+        && request.auth.token.email_verified == true
+        && request.auth.uid == userId;
+    }
+
+    function isValidStringList(arr, maxItems, maxItemLen) {
+      return arr is list
+        && arr.size() <= maxItems
+        && (arr.size() == 0 || (arr[0] is string && arr[0].size() >= 1 && arr[0].size() <= maxItemLen));
+    }
+
+    function isValidDateString(val) {
+      return val is string
+        && val.size() == 10
+        && val.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$');
+    }
+
+    function isValidUserWorkspace(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'displayName',
+          'email',
+          'photoURL',
+          'savedGuideIds',
+          'likedGuideIds',
+          'checkedStepKeys',
+          'thesisTaskIds',
+          'pomodoroSessionsToday',
+          'pomodoroDate',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'email',
+          'photoURL',
+          'savedGuideIds',
+          'likedGuideIds',
+          'checkedStepKeys',
+          'thesisTaskIds',
+          'pomodoroSessionsToday',
+          'pomodoroDate',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string && data.uid == request.auth.uid && data.uid == userId && isValidId(data.uid)
+        && data.displayName is string && data.displayName.size() <= 120
+        && data.email is string && data.email.size() <= 254
+        && data.photoURL is string && data.photoURL.size() <= 500
+        && isValidStringList(data.savedGuideIds, 40, 100)
+        && isValidStringList(data.likedGuideIds, 40, 100)
+        && isValidStringList(data.checkedStepKeys, 200, 128)
+        && isValidStringList(data.thesisTaskIds, 30, 64)
+        && data.pomodoroSessionsToday is int && data.pomodoroSessionsToday >= 0 && data.pomodoroSessionsToday <= 200
+        && isValidDateString(data.pomodoroDate)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidGuideNote(data, userId, guideId) {
+      return data.keys().hasAll(['ownerId', 'guideId', 'content', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'guideId', 'content', 'createdAt', 'updatedAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == userId && isValidId(data.ownerId)
+        && data.guideId is string && data.guideId == guideId && data.guideId.size() <= 100 && isValidId(data.guideId)
+        && data.content is string && data.content.size() <= 2000
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidWorkHistory(data, userId) {
+      return data.keys().hasAll(['ownerId', 'category', 'title', 'detail', 'createdAt'])
+        && data.keys().hasOnly(['ownerId', 'category', 'title', 'detail', 'createdAt'])
+        && data.ownerId is string && data.ownerId == request.auth.uid && data.ownerId == userId && isValidId(data.ownerId)
+        && data.category is string
+        && data.category.size() <= 20
+        && data.category in ['slovin', 'sitasi', 'statistik', 'pesan-dosen', 'pomodoro', 'skripsi', 'panduan']
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 160
+        && data.detail is string && data.detail.size() <= 1200
+        && data.createdAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow list: if false;
+      allow get: if isVerifiedOwner(userId) && isValidId(userId);
+      allow create: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserWorkspace(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isVerifiedOwner(userId)
+        && isValidId(userId)
+        && isValidUserWorkspace(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'photoURL', 'updatedAt']) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'savedGuideIds',
+            'likedGuideIds',
+            'checkedStepKeys',
+            'thesisTaskIds',
+            'pomodoroSessionsToday',
+            'pomodoroDate',
+            'updatedAt'
+          ]) ||
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'displayName',
+            'email',
+            'photoURL',
+            'savedGuideIds',
+            'likedGuideIds',
+            'checkedStepKeys',
+            'thesisTaskIds',
+            'pomodoroSessionsToday',
+            'pomodoroDate',
+            'updatedAt'
+          ])
+        );
+      allow delete: if isVerifiedOwner(userId) && isValidId(userId);
+
+      match /notes/{guideId} {
+        allow list: if isVerifiedOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(guideId);
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(guideId)
+          && isValidGuideNote(incoming(), userId, guideId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(guideId)
+          && isValidGuideNote(incoming(), userId, guideId)
+          && incoming().ownerId == existing().ownerId
+          && incoming().guideId == existing().guideId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && incoming().diff(existing()).affectedKeys().hasOnly(['content', 'updatedAt'])
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow delete: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(guideId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+      }
+
+      match /history/{entryId} {
+        allow list: if isVerifiedOwner(userId) && resource.data.ownerId == request.auth.uid;
+        allow get: if isVerifiedOwner(userId) && isValidId(userId) && isValidId(entryId);
+        allow create: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(entryId)
+          && isValidWorkHistory(incoming(), userId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+        allow update: if false;
+        allow delete: if isVerifiedOwner(userId)
+          && isValidId(userId)
+          && isValidId(entryId)
+          && exists(/databases/$(database)/documents/users/$(userId));
+      }
+    }
+  }
+}

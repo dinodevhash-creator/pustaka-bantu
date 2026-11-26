@@ -1,0 +1,175 @@
+{
+  "entities": {
+    "UserWorkspace": {
+      "title": "UserWorkspace",
+      "description": "Profil akun Google mahasiswa dan ringkasan progres belajar pribadi.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID akun Firebase Auth milik mahasiswa."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 120,
+          "description": "Nama tampilan dari akun Google."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 254,
+          "description": "Alamat email akun Google (PII, hanya dapat dibaca pemilik)."
+        },
+        "photoURL": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "URL foto profil akun Google."
+        },
+        "savedGuideIds": {
+          "type": "array",
+          "description": "Daftar ID panduan yang disimpan mahasiswa (maks 40)."
+        },
+        "likedGuideIds": {
+          "type": "array",
+          "description": "Daftar ID panduan yang disukai mahasiswa (maks 40)."
+        },
+        "checkedStepKeys": {
+          "type": "array",
+          "description": "Daftar kunci langkah ceklis panduan yang selesai (maks 200)."
+        },
+        "thesisTaskIds": {
+          "type": "array",
+          "description": "Daftar ID tonggak progres skripsi yang selesai (maks 30)."
+        },
+        "pomodoroSessionsToday": {
+          "type": "integer",
+          "description": "Jumlah sesi Pomodoro selesai pada tanggal pomodoroDate."
+        },
+        "pomodoroDate": {
+          "type": "string",
+          "maxLength": 16,
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "description": "Tanggal lokal pencatatan sesi Pomodoro (YYYY-MM-DD)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan dokumen workspace (server timestamp)."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan terakhir workspace (server timestamp)."
+        }
+      },
+      "required": [
+        "uid",
+        "displayName",
+        "email",
+        "photoURL",
+        "savedGuideIds",
+        "likedGuideIds",
+        "checkedStepKeys",
+        "thesisTaskIds",
+        "pomodoroSessionsToday",
+        "pomodoroDate",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "GuideNote": {
+      "title": "GuideNote",
+      "description": "Catatan pribadi mahasiswa pada satu panduan akademik.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik catatan."
+        },
+        "guideId": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "ID panduan akademik terkait."
+        },
+        "content": {
+          "type": "string",
+          "maxLength": 2000,
+          "description": "Isi catatan pribadi mahasiswa."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembuatan catatan."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu pembaruan terakhir catatan."
+        }
+      },
+      "required": ["ownerId", "guideId", "content", "createdAt", "updatedAt"]
+    },
+    "WorkHistoryEntry": {
+      "title": "WorkHistoryEntry",
+      "description": "Rekam riwayat kerja mahasiswa dari alat hitung, generator sitasi, uji statistik, pesan dosen, Pomodoro, atau progres skripsi.",
+      "type": "object",
+      "properties": {
+        "ownerId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID pemilik riwayat kerja."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "slovin",
+            "sitasi",
+            "statistik",
+            "pesan-dosen",
+            "pomodoro",
+            "skripsi",
+            "panduan"
+          ],
+          "description": "Kategori alat atau aktivitas akademik."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "description": "Ringkasan judul riwayat kerja."
+        },
+        "detail": {
+          "type": "string",
+          "maxLength": 1200,
+          "description": "Hasil perhitungan, format sitasi, draf pesan, atau catatan aktivitas."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Waktu riwayat disimpan (server timestamp)."
+        }
+      },
+      "required": ["ownerId", "category", "title", "detail", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserWorkspace" },
+      "description": "Dokumen profil dan progres pribadi per pengguna Google."
+    },
+    "/users/{userId}/notes/{guideId}": {
+      "schema": { "$ref": "#/entities/GuideNote" },
+      "description": "Subkoleksi catatan pribadi per panduan milik pengguna."
+    },
+    "/users/{userId}/history/{entryId}": {
+      "schema": { "$ref": "#/entities/WorkHistoryEntry" },
+      "description": "Subkoleksi riwayat kerja akademik tersimpan milik pengguna."
+    }
+  }
+}

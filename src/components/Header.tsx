@@ -1,16 +1,21 @@
 import { useState } from 'react';
+import { User } from 'firebase/auth';
 import { Menu, X } from 'lucide-react';
 
 interface HeaderProps {
+  user: User | null;
   savedCount: number;
+  historyCount: number;
   onNavigate: (sectionId: string) => void;
-  onOpenFocusTimer: () => void;
+  onOpenLogin: () => void;
 }
 
 export function Header({
+  user,
   savedCount,
+  historyCount,
   onNavigate,
-  onOpenFocusTimer,
+  onOpenLogin,
 }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -18,6 +23,10 @@ export function Header({
     { id: 'panduan', label: 'Panduan' },
     { id: 'alat-bantu', label: 'Alat Bantu' },
     { id: 'progres-skripsi', label: 'Progres Skripsi' },
+    {
+      id: 'riwayat-kerja',
+      label: historyCount > 0 ? `Riwayat (${historyCount})` : 'Riwayat',
+    },
     {
       id: 'tersimpan',
       label: savedCount > 0 ? `Tersimpan (${savedCount})` : 'Tersimpan',
@@ -27,6 +36,18 @@ export function Header({
   const handleLinkClick = (id: string) => {
     setMobileOpen(false);
     onNavigate(id);
+  };
+
+  const firstName = user?.displayName?.trim().split(/\s+/)[0] || 'Akun Saya';
+  const primaryLabel = user ? firstName : 'Masuk Google';
+
+  const handlePrimaryAction = () => {
+    setMobileOpen(false);
+    if (user) {
+      onNavigate('riwayat-kerja');
+    } else {
+      onOpenLogin();
+    }
   };
 
   return (
@@ -45,7 +66,7 @@ export function Header({
 
         <nav
           aria-label="Navigasi utama"
-          className="hidden md:flex items-center gap-7 text-sm font-medium text-[#52607A] dark:text-slate-300"
+          className="hidden md:flex items-center gap-6 text-sm font-medium text-[#52607A] dark:text-slate-300"
         >
           {navItems.map((item) => (
             <button
@@ -62,13 +83,10 @@ export function Header({
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
-            onClick={() => {
-              setMobileOpen(false);
-              onOpenFocusTimer();
-            }}
-            className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[#1D4ED8] hover:bg-[#1E40AF] dark:bg-[#2563EB] dark:hover:bg-[#3B82F6] rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D4ED8]"
+            onClick={handlePrimaryAction}
+            className="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-[#1D4ED8] hover:bg-[#1E40AF] dark:bg-[#2563EB] dark:hover:bg-[#3B82F6] rounded-lg transition-colors whitespace-nowrap shrink-0 max-w-[150px] truncate cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1D4ED8]"
           >
-            Timer Fokus
+            {primaryLabel}
           </button>
 
           <button
@@ -98,13 +116,10 @@ export function Header({
             ))}
             <button
               type="button"
-              onClick={() => {
-                setMobileOpen(false);
-                onOpenFocusTimer();
-              }}
+              onClick={handlePrimaryAction}
               className="mt-2 w-full px-4 py-2.5 text-sm font-semibold text-white bg-[#1D4ED8] hover:bg-[#1E40AF] rounded-lg transition-colors"
             >
-              Timer Fokus
+              {primaryLabel}
             </button>
           </div>
         </div>
